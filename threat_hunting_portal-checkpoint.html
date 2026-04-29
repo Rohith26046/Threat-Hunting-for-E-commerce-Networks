@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-commerce Threat Hunting Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}
+body{background:#f4f6f9;padding:20px;}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:#fff;border:1px solid #e0e0e0;border-radius:10px;margin-bottom:18px;}
+.nav-icon{width:36px;height:36px;border-radius:8px;background:#185FA5;display:flex;align-items:center;justify-content:center;}
+.nav-icon svg{width:20px;height:20px;fill:white;}
+.nav-info{margin-left:12px;}
+.nav-title{font-size:16px;font-weight:700;color:#1a1a2e;}
+.nav-sub{font-size:12px;color:#888;}
+.badge{font-size:12px;padding:5px 12px;border-radius:20px;background:#fde8e8;color:#c0392b;display:flex;align-items:center;gap:6px;font-weight:600;}
+.pulse{width:8px;height:8px;border-radius:50%;background:#e74c3c;animation:blink 1.2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+.tabs{display:flex;gap:4px;border-bottom:2px solid #e0e0e0;margin-bottom:18px;}
+.tab{font-size:14px;padding:10px 18px;cursor:pointer;border:none;background:transparent;color:#888;border-bottom:3px solid transparent;margin-bottom:-2px;font-weight:500;}
+.tab.active{color:#185FA5;border-bottom:3px solid #185FA5;}
+.tab:hover{color:#185FA5;}
+.section{display:none;}
+.section.active{display:block;}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+.metric{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e8e8e8;}
+.metric-label{font-size:11px;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;}
+.metric-value{font-size:26px;font-weight:700;color:#1a1a2e;}
+.metric-sub{font-size:12px;margin-top:3px;color:#aaa;}
+.danger{color:#e74c3c;}.success{color:#27ae60;}.warning{color:#e67e22;}.info{color:#2471a3;}
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px 18px;margin-bottom:16px;}
+.card-title{font-size:11px;font-weight:700;color:#888;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.06em;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:13px;color:#555;}
+.leg{display:flex;align-items:center;gap:6px;}
+.leg-sq{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
+.thresh-row{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+.thresh-row label{font-size:13px;color:#555;white-space:nowrap;font-weight:500;}
+.thresh-row input[type=range]{flex:1;max-width:220px;accent-color:#185FA5;}
+#thresh-val{font-size:14px;font-weight:700;color:#185FA5;min-width:70px;}
+.alerts{display:flex;flex-direction:column;gap:10px;}
+.alert{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-radius:8px;border:1px solid;}
+.alert.high{background:#fde8e8;border-color:#f5c6c6;}
+.alert.medium{background:#fef3e2;border-color:#fde3a7;}
+.alert.low{background:#e8f4fd;border-color:#c3e0f5;}
+.alert-body{flex:1;}
+.alert-title{font-size:14px;font-weight:700;}
+.alert.high .alert-title{color:#c0392b;}
+.alert.medium .alert-title{color:#d35400;}
+.alert.low .alert-title{color:#2471a3;}
+.alert-detail{font-size:13px;color:#555;margin-top:4px;line-height:1.5;}
+.alert-time{font-size:12px;color:#aaa;white-space:nowrap;margin-top:2px;}
+.severity-icon{font-size:20px;margin-top:2px;}
+table.data{width:100%;font-size:13px;border-collapse:collapse;}
+table.data th{font-size:11px;font-weight:700;color:#888;text-align:left;padding:10px 12px;border-bottom:2px solid #e0e0e0;text-transform:uppercase;letter-spacing:0.04em;background:#f9f9f9;}
+table.data td{padding:10px 12px;border-bottom:1px solid #f0f0f0;color:#333;}
+table.data tr:hover td{background:#f9f9f9;}
+.pill{display:inline-block;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;}
+.pill.danger{background:#fde8e8;color:#c0392b;}
+.pill.success{background:#e8f8f0;color:#1e8449;}
+@media(max-width:600px){.metrics{grid-template-columns:1fr 1fr;}.two-col{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div style="display:flex;align-items:center;">
+    <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    <div class="nav-info">
+      <div class="nav-title">E-commerce Threat Hunting Portal</div>
+      <div class="nav-sub">Network Traffic Visualisation &amp; Analysis</div>
+    </div>
+  </div>
+  <div class="badge"><div class="pulse"></div>Live Monitor</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('overview',this)">Overview</button>
+  <button class="tab" onclick="showTab('traffic',this)">Traffic Analysis</button>
+  <button class="tab" onclick="showTab('threats',this)">Threat Alerts</button>
+  <button class="tab" onclick="showTab('rawdata',this)">Raw Data</button>
+</div>
+
+<!-- OVERVIEW -->
+<div id="overview" class="section active">
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Total windows</div><div class="metric-value">48</div><div class="metric-sub">24-hour period</div></div>
+    <div class="metric"><div class="metric-label">Avg bytes/min</div><div class="metric-value">820</div><div class="metric-sub">baseline normal</div></div>
+    <div class="metric"><div class="metric-label">Anomalies</div><div class="metric-value danger">6</div><div class="metric-sub danger">12.5% of traffic</div></div>
+    <div class="metric"><div class="metric-label">Peak traffic</div><div class="metric-value warning">3,600</div><div class="metric-sub">bytes at 08:30</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Network traffic timeline — anomaly detection</div>
+    <div class="thresh-row">
+      <label>Threshold:</label>
+      <input type="range" id="thresh" min="500" max="3000" step="50" value="1500" oninput="updateThresh(this.value)">
+      <span id="thresh-val">1500 B</span>
+    </div>
+    <div style="position:relative;width:100%;height:280px;">
+      <canvas id="c1" role="img" aria-label="Network traffic timeline bar chart with anomaly threshold">Traffic timeline.</canvas>
+    </div>
+    <div class="legend">
+      <span class="leg"><span class="leg-sq" style="background:#378ADD;"></span>Normal traffic</span>
+      <span class="leg"><span class="leg-sq" style="background:#E24B4A;"></span>Anomaly detected</span>
+      <span class="leg"><span class="leg-sq" style="background:#BA7517;height:2px;border-radius:0;"></span>Threshold line</span>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Protocol distribution</div>
+      <div style="position:relative;width:100%;height:200px;">
+        <canvas id="c2" role="img" aria-label="Protocol donut chart">Protocol distribution.</canvas>
+      </div>
+      <div class="legend" id="proto-leg"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Hourly traffic pattern</div>
+      <div style="position:relative;width:100%;height:200px;">
+        <canvas id="c3" role="img" aria-label="Hourly average traffic bar chart">Hourly traffic.</canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRAFFIC ANALYSIS -->
+<div id="traffic" class="section">
+  <div class="card">
+    <div class="card-title">Bytes sent vs packets — anomaly scatter plot</div>
+    <div style="position:relative;width:100%;height:300px;">
+      <canvas id="c4" role="img" aria-label="Scatter plot of bytes vs packets">Scatter plot.</canvas>
+    </div>
+    <div class="legend">
+      <span class="leg"><span class="leg-sq" style="background:#378ADD;"></span>Normal traffic</span>
+      <span class="leg"><span class="leg-sq" style="background:#E24B4A;"></span>Anomaly detected</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top source IPs by total bytes sent</div>
+    <div style="position:relative;width:100%;height:320px;">
+      <canvas id="c5" role="img" aria-label="Horizontal bar chart of top source IPs">Top IPs.</canvas>
+    </div>
+    <div class="legend">
+      <span class="leg"><span class="leg-sq" style="background:#E24B4A;"></span>Suspicious / flagged IP</span>
+      <span class="leg"><span class="leg-sq" style="background:#378ADD;"></span>Normal internal IP</span>
+    </div>
+  </div>
+</div>
+
+<!-- THREAT ALERTS -->
+<div id="threats" class="section">
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">High severity</div><div class="metric-value danger">2</div></div>
+    <div class="metric"><div class="metric-label">Medium severity</div><div class="metric-value warning">1</div></div>
+    <div class="metric"><div class="metric-label">Low severity</div><div class="metric-value info">1</div></div>
+    <div class="metric"><div class="metric-label">Threat rate</div><div class="metric-value danger">12.5%</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Active threat alerts</div>
+    <div class="alerts">
+      <div class="alert high">
+        <div class="severity-icon">⚠️</div>
+        <div class="alert-body">
+          <div class="alert-title">DDoS attack detected</div>
+          <div class="alert-detail">Sustained high-volume HTTPS flood from 45.33.32.156/157. Peak: 3,600 B at 08:30. Pattern matches volumetric DDoS across 3 consecutive windows.</div>
+          <div class="alert-time">07:30 – 08:30</div>
+        </div>
+      </div>
+      <div class="alert high">
+        <div class="severity-icon">⚠️</div>
+        <div class="alert-body">
+          <div class="alert-title">Isolated traffic spike</div>
+          <div class="alert-detail">Single large burst from 45.33.32.158 via HTTPS. Peak: 3,400 B. Possible botnet probe or reconnaissance attempt.</div>
+          <div class="alert-time">21:00</div>
+        </div>
+      </div>
+      <div class="alert medium">
+        <div class="severity-icon">🔶</div>
+        <div class="alert-body">
+          <div class="alert-title">Data exfiltration attempt</div>
+          <div class="alert-detail">Excessive FTP outbound traffic from 198.51.100.22. Peak: 3,100 B. Unusual FTP volume suggests possible data theft from e-commerce database.</div>
+          <div class="alert-time">16:30 – 17:00</div>
+        </div>
+      </div>
+      <div class="alert low">
+        <div class="severity-icon">🔵</div>
+        <div class="alert-body">
+          <div class="alert-title">Off-peak traffic anomaly</div>
+          <div class="alert-detail">Traffic elevated above baseline during low-activity hours (03:00–05:00). Recommend reviewing logs for automated scraping activity.</div>
+          <div class="alert-time">03:00 – 05:00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Suspicious IP summary</div>
+    <table class="data">
+      <thead><tr><th>Source IP</th><th>Occurrences</th><th>Peak bytes</th><th>Protocol</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>45.33.32.156</td><td>2</td><td>3,200 B</td><td>HTTPS</td><td><span class="pill danger">Flagged</span></td></tr>
+        <tr><td>45.33.32.157</td><td>1</td><td>3,600 B</td><td>HTTP</td><td><span class="pill danger">Flagged</span></td></tr>
+        <tr><td>45.33.32.158</td><td>1</td><td>3,400 B</td><td>HTTPS</td><td><span class="pill danger">Flagged</span></td></tr>
+        <tr><td>198.51.100.22</td><td>2</td><td>3,100 B</td><td>FTP</td><td><span class="pill danger">Flagged</span></td></tr>
+        <tr><td>192.168.1.10 – 15</td><td>40</td><td>820 B avg</td><td>Mixed</td><td><span class="pill success">Normal</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- RAW DATA -->
+<div id="rawdata" class="section">
+  <div class="card">
+    <div class="card-title">Network traffic dataset — all 48 records</div>
+    <table class="data">
+      <thead><tr><th>Time</th><th>Bytes sent</th><th>Bytes received</th><th>Packets</th><th>Protocol</th><th>Source IP</th><th>Label</th></tr></thead>
+      <tbody id="data-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function showTab(id,btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+const RAW=[
+  ['00:00',512,1024,8,'HTTPS','192.168.1.10','Normal'],['00:30',480,960,7,'HTTPS','192.168.1.11','Normal'],
+  ['01:00',620,1200,9,'HTTP','192.168.1.12','Normal'],['01:30',390,780,6,'DNS','192.168.1.10','Normal'],
+  ['02:00',440,880,7,'HTTPS','192.168.1.13','Normal'],['02:30',510,1020,8,'HTTPS','192.168.1.14','Normal'],
+  ['03:00',360,720,6,'HTTP','192.168.1.10','Normal'],['03:30',425,850,7,'DNS','192.168.1.15','Normal'],
+  ['04:00',490,980,8,'HTTPS','192.168.1.11','Normal'],['04:30',380,760,6,'HTTPS','192.168.1.12','Normal'],
+  ['05:00',540,1080,8,'HTTP','192.168.1.13','Normal'],['05:30',460,920,7,'HTTPS','192.168.1.10','Normal'],
+  ['06:00',720,1440,11,'HTTPS','192.168.1.14','Normal'],['06:30',850,1700,13,'HTTPS','192.168.1.15','Normal'],
+  ['07:00',980,1960,15,'HTTP','192.168.1.10','Normal'],['07:30',2800,5600,420,'HTTPS','45.33.32.156','Anomaly'],
+  ['08:00',3200,6400,480,'HTTPS','45.33.32.156','Anomaly'],['08:30',3600,7200,540,'HTTP','45.33.32.157','Anomaly'],
+  ['09:00',1100,2200,17,'HTTPS','192.168.1.11','Normal'],['09:30',1050,2100,16,'HTTPS','192.168.1.12','Normal'],
+  ['10:00',1200,2400,18,'HTTP','192.168.1.13','Normal'],['10:30',1150,2300,17,'HTTPS','192.168.1.14','Normal'],
+  ['11:00',1300,2600,20,'HTTPS','192.168.1.15','Normal'],['11:30',1250,2500,19,'DNS','192.168.1.10','Normal'],
+  ['12:00',1400,2800,21,'HTTPS','192.168.1.11','Normal'],['12:30',1350,2700,20,'HTTP','192.168.1.12','Normal'],
+  ['13:00',1450,2900,22,'HTTPS','192.168.1.13','Normal'],['13:30',1380,2760,21,'HTTPS','192.168.1.14','Normal'],
+  ['14:00',1320,2640,20,'FTP','192.168.1.15','Normal'],['14:30',1280,2560,19,'HTTPS','192.168.1.10','Normal'],
+  ['15:00',1420,2840,21,'HTTP','192.168.1.11','Normal'],['15:30',1360,2720,20,'HTTPS','192.168.1.12','Normal'],
+  ['16:00',1500,3000,23,'HTTPS','192.168.1.13','Normal'],['16:30',2950,5900,440,'FTP','198.51.100.22','Anomaly'],
+  ['17:00',3100,6200,465,'FTP','198.51.100.22','Anomaly'],['17:30',1350,2700,20,'HTTPS','192.168.1.14','Normal'],
+  ['18:00',1280,2560,19,'HTTP','192.168.1.15','Normal'],['18:30',1200,2400,18,'HTTPS','192.168.1.10','Normal'],
+  ['19:00',1150,2300,17,'HTTPS','192.168.1.11','Normal'],['19:30',1050,2100,16,'DNS','192.168.1.12','Normal'],
+  ['20:00',980,1960,15,'HTTPS','192.168.1.13','Normal'],['20:30',900,1800,14,'HTTP','192.168.1.14','Normal'],
+  ['21:00',3400,6800,510,'HTTPS','45.33.32.158','Anomaly'],['21:30',820,1640,12,'HTTPS','192.168.1.15','Normal'],
+  ['22:00',760,1520,11,'HTTPS','192.168.1.10','Normal'],['22:30',690,1380,10,'HTTP','192.168.1.11','Normal'],
+  ['23:00',620,1240,9,'HTTPS','192.168.1.12','Normal'],['23:30',550,1100,8,'DNS','192.168.1.13','Normal']
+];
+
+let thresh=1500;
+const labels=RAW.map(r=>r[0]);
+const bytes=RAW.map(r=>r[1]);
+
+function getColors(t){return bytes.map(v=>v>t?'#E24B4A':'#378ADD');}
+
+const c1=new Chart(document.getElementById('c1'),{
+  type:'bar',
+  data:{labels,datasets:[
+    {label:'Bytes Sent',data:bytes,backgroundColor:getColors(thresh),borderRadius:3,borderSkipped:false},
+    {label:'Threshold',data:Array(48).fill(thresh),type:'line',borderColor:'#BA7517',borderWidth:2,borderDash:[6,3],pointRadius:0,fill:false}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y.toLocaleString()} bytes`}}},scales:{x:{ticks:{autoSkip:true,maxTicksLimit:12,color:'#888',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#888',font:{size:11},callback:v=>v>=1000?`${(v/1000).toFixed(1)}k`:v},grid:{color:'rgba(0,0,0,0.06)'}}}}
+});
+
+function updateThresh(v){
+  thresh=parseInt(v);
+  document.getElementById('thresh-val').textContent=`${thresh.toLocaleString()} B`;
+  c1.data.datasets[0].backgroundColor=getColors(thresh);
+  c1.data.datasets[1].data=Array(48).fill(thresh);
+  c1.update();
+}
+
+const pc=['#378ADD','#1D9E75','#BA7517','#A32D2D','#888780'];
+const pl=['HTTPS','HTTP','FTP','DNS','Other'];
+const pd=[44,28,10,12,6];
+new Chart(document.getElementById('c2'),{
+  type:'doughnut',
+  data:{labels:pl,datasets:[{data:pd,backgroundColor:pc,borderWidth:0}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'62%'}
+});
+const leg=document.getElementById('proto-leg');
+pl.forEach((l,i)=>{
+  const s=document.createElement('span');
+  s.className='leg';
+  s.innerHTML=`<span class="leg-sq" style="background:${pc[i]};"></span>${l} ${pd[i]}%`;
+  leg.appendChild(s);
+});
+
+const hourly=Array.from({length:24},(_,h)=>{
+  const pts=RAW.filter(r=>parseInt(r[0])==h).map(r=>r[1]);
+  return pts.length?Math.round(pts.reduce((a,b)=>a+b,0)/pts.length):0;
+});
+new Chart(document.getElementById('c3'),{
+  type:'bar',
+  data:{labels:Array.from({length:24},(_,i)=>String(i).padStart(2,'0')),datasets:[{data:hourly,backgroundColor:hourly.map(v=>v>1200?'#E24B4A':v>800?'#BA7517':'#5DCAA5'),borderRadius:3}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y.toLocaleString()} B avg`}}},scales:{x:{ticks:{color:'#888',font:{size:11}},grid:{display:false}},y:{display:false}}}
+});
+
+const norm=RAW.filter(r=>r[6]==='Normal');
+const anom=RAW.filter(r=>r[6]==='Anomaly');
+new Chart(document.getElementById('c4'),{
+  type:'scatter',
+  data:{datasets:[
+    {label:'Normal',data:norm.map(r=>({x:r[3],y:r[1]})),backgroundColor:'#378ADD',pointRadius:6,pointStyle:'circle'},
+    {label:'Anomaly',data:anom.map(r=>({x:r[3],y:r[1]})),backgroundColor:'#E24B4A',pointRadius:9,pointStyle:'crossRot'}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Packets: ${c.parsed.x}, Bytes: ${c.parsed.y.toLocaleString()}`}}},scales:{x:{title:{display:true,text:'Number of Packets',color:'#888',font:{size:12}},ticks:{color:'#888'}},y:{title:{display:true,text:'Bytes Sent',color:'#888',font:{size:12}},ticks:{color:'#888',callback:v=>v>=1000?`${(v/1000).toFixed(1)}k`:v}}}}
+});
+
+const ipMap={};
+RAW.forEach(r=>{if(!ipMap[r[5]])ipMap[r[5]]={total:0,label:r[6]};ipMap[r[5]].total+=r[1];});
+const ipE=Object.entries(ipMap).sort((a,b)=>b[1].total-a[1].total).slice(0,8);
+new Chart(document.getElementById('c5'),{
+  type:'bar',
+  data:{labels:ipE.map(e=>e[0]),datasets:[{data:ipE.map(e=>e[1].total),backgroundColor:ipE.map(e=>e[1].label==='Anomaly'?'#E24B4A':'#378ADD'),borderRadius:3}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.x.toLocaleString()} B total`}}},scales:{x:{ticks:{color:'#888',callback:v=>v>=1000?`${(v/1000).toFixed(1)}k`:v},grid:{color:'rgba(0,0,0,0.06)'}},y:{ticks:{color:'#333',font:{size:12}},grid:{display:false}}}}
+});
+
+const tb=document.getElementById('data-tbody');
+RAW.forEach(r=>{
+  const isA=r[6]==='Anomaly';
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${r[0]}</td><td style="color:${isA?'#e74c3c':'#333'};font-weight:${isA?'700':'400'}">${r[1].toLocaleString()}</td><td>${r[2].toLocaleString()}</td><td>${r[3]}</td><td>${r[4]}</td><td style="font-family:monospace;font-size:12px;">${r[5]}</td><td><span class="pill ${isA?'danger':'success'}">${r[6]}</span></td>`;
+  tb.appendChild(tr);
+});
+</script>
+</body>
+</html>
